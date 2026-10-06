@@ -1,5 +1,6 @@
 """Scraper Studio — backend (FastAPI).
-Запуск: uvicorn app:app --reload   ->  http://127.0.0.1:8000
+Запуск: uvicorn app:app --host 0.0.0.0 --port 8000 --reload  ->  http://127.0.0.1:8000
+(0.0.0.0 нужен, чтобы n8n из Docker мог достучаться через host.docker.internal)
 """
 import io
 import re
@@ -139,7 +140,9 @@ def scrape(req: ScrapeReq):
 
 # ---------- PDF ----------
 def ocr_image(img: Image.Image, lang: str) -> str:
-    return pytesseract.image_to_string(img.convert("RGB"), lang=lang).strip()
+    # --psm 6: считать картинку одним однородным блоком текста — лучше держит
+    # строки вместе на сетках карточек (сайты, скриншоты), чем режим по умолчанию.
+    return pytesseract.image_to_string(img.convert("RGB"), lang=lang, config="--psm 6").strip()
 
 
 def check_lang(lang: str) -> str:
@@ -197,8 +200,63 @@ def read_image(file: UploadFile = File(...), lang: str = Form("rus+eng")):
     return {**text_extras(text), "title": file.filename, "text": text, "size": list(img.size), "lang": lang}
 
 
+# ---------- Для n8n-агента ----------
+class AgentReadReq(BaseModel):
+    url: str
+    limit: int = 6000            # сколько символов текста отдавать модели (лимиты Groq)
+
+
+def pdf_bytes_to_text(data: bytes, lang: str = "rus+eng") -> str:
+    reader = PdfReader(io.BytesIO(data))
+    if reader.is_encrypted:
+        reader.decrypt("")
+    out = []
+    for i, page in enumerate(reader.pages, 1):
+        text = (page.extract_text() or "").strip()
+        if len(text) < 20:  # вероятно, скан
+            try:
+                parts = [ocr_image(Image.open(io.BytesIO(im.data)), lang) for im in page.images]
+                text = "\n".join(p for p in parts if p) or text
+            except Exception:
+                pass
+        out.append(f"--- стр. {i} ---\n{text}")
+    return "\n\n".join(out)
+
+
+@app.post("/api/agent/read")
+def agent_read(req: AgentReadReq):
+    """Компактный ответ для ИИ-агента: текст + цены + контакты, без ссылок и картинок.
+    Ошибки возвращаются полем error (статус 200), чтобы агент мог объяснить их пользователю."""
+    if urlparse(req.url).scheme not in ("http", "https"):
+        return {"error": "Нужна ссылка, начинающаяся с http:// или https://"}
+    extra = {}
+    try:
+        try:
+            r = requests.get(req.url, headers={"User-Agent": UA}, timeout=30)
+        except Exception:
+            r = None
+        if r is not None and r.ok and "pdf" in r.headers.get("content-type", "").lower():
+            title, text = req.url.rsplit("/", 1)[-1], pdf_bytes_to_text(r.content)
+        else:
+            data = None
+            if r is not None and r.ok:
+                if not r.encoding or r.encoding.lower() == "iso-8859-1":
+                    r.encoding = r.apparent_encoding
+                data = parse_html(r.text, req.url, "")
+            if data is None or len(data["text"]) < 200:  # заблокировали или страница рисуется JS
+                data = parse_html(fetch_selenium(req.url, 30, "", True), req.url, "")
+            _, extra["price_summary"] = enrich_prices(data["raw_prices"])
+            extra["contacts"] = data["contacts"]
+            title, text = data["title"], data["text"]
+    except Exception as e:
+        return {"error": f"Не удалось загрузить страницу: {e}"}
+    return {"url": req.url, "title": title, "text": text[:req.limit],
+            "truncated": len(text) > req.limit, **extra}
+
+
+# Монтирование статики должно оставаться последним, иначе "/" перехватит API-маршруты
 app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
