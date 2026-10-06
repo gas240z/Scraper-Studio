@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+requests
+beautifulsoup4
+selenium
+pypdf
+pillow
+pytesseract
