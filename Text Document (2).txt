@@ -1,0 +1,792 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "bc683aac-a2d4-41ec-b7fe-ad9bc3689fed",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        336,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "70fd65b6-bd27-41b8-968d-c3ae6a98d31c",
+              "leftValue": "={{ $json.kind !== 'other' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f2bae02a-e208-4612-8935-a7732210eee4",
+      "name": "Supported file?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        352,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.file_id }}",
+        "additionalFields": {}
+      },
+      "id": "3fa00981-0699-4c0c-8eb0-15862d40e89d",
+      "name": "Download from Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        608,
+        144
+      ],
+      "webhookId": "f589b3ba-29af-43d6-b909-638a89841321",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Пока умею разбирать только PDF и фото/картинки 🙂",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "fed20952-2dbc-4d05-81bb-1dd6cfdc2b05",
+      "name": "Unsupported file",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        272,
+        -48
+      ],
+      "webhookId": "44e4e579-3ddb-4bcc-80a7-280428d5dbc5",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "0d68c9d8-72dc-4fd9-a5a4-3ed9fb61c447",
+              "leftValue": "={{ $('Execute Workflow Trigger').first().json.kind === 'pdf' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ca2acd35-c6a0-411f-ab39-6ccbf0e7408f",
+      "name": "Is PDF?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        976,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/pdf",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "ocr",
+              "value": "true"
+            },
+            {
+              "name": "lang",
+              "value": "rus+eng"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "00c5dc48-287d-487f-92b6-e1fd10b1eaf8",
+      "name": "Parser: PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        928,
+        288
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/ocr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "lang",
+              "value": "rus+eng"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "71a27d16-7beb-4658-90df-887913bc17c6",
+      "name": "Parser: OCR",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        928,
+        480
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "883cbcc3-138c-4d76-aa91-4616bb44dfd6",
+              "name": "chat_id",
+              "value": "={{ $('Execute Workflow Trigger').first().json.chat_id }}",
+              "type": "string"
+            },
+            {
+              "id": "669d6157-b506-4fc9-af22-78d6b9baa8c8",
+              "name": "file_name",
+              "value": "={{ $('Execute Workflow Trigger').first().json.file_name }}",
+              "type": "string"
+            },
+            {
+              "id": "3c56ee3c-5f90-40d4-a3f8-72a59bce3085",
+              "name": "text",
+              "value": "={{ String($json.text || '').slice(0, 8000) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cd860ca1-ec04-48b5-bed0-c935819e3c98",
+      "name": "Prepare text",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b7d9aa79-29d7-4d13-9003-64a565670362",
+              "leftValue": "={{ $json.text.replace(/---\\s*стр\\.\\s*\\d+\\s*---/g, '').trim().length > 20 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5e9f9bc6-e4ac-4c60-8f2f-c3ec003e5104",
+      "name": "Text found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Execute Workflow Trigger').first().json.chat_id }}",
+        "text": "Не удалось распознать текст в файле 😕 Попробуй более чёткий скан или фото.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "24ac0854-fd10-45a3-8278-8fea5d1416bf",
+      "name": "Nothing recognized",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1392,
+        704
+      ],
+      "webhookId": "6d92dbc3-4ea2-44be-83b3-824058c0b52b",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Проанализируй текст, полученный из файла (это может быть фото, скан, страница сайта, каталог, документ — что угодно). Твоя задача — найти в нём названия товаров/позиций и их цены, если они там есть.\n\nВерни СТРОГО один JSON-объект и ничего больше: без markdown, без ```json, без пояснений до или после.\nФормат:\n{\n  \"has_items\": true или false,\n  \"items\": [ { \"name\": \"название\", \"price\": \"51.77\", \"currency\": \"GBP\" } ],\n  \"description\": \"Краткое описание в 1-2 предложения по-русски, что это за файл. Заполняй ВСЕГДА, даже если items пустой.\"\n}\n\nПравила:\n- has_items = true только если в тексте реально есть хотя бы одна пара «название + цена».\n- Если это не прайс-лист/каталог/чек, или названий с ценами нет — has_items: false, items: [], но description всё равно напиши.\n- price — число в виде строки, без лишних символов и валютных знаков внутри (например \"51.77\").\n- currency — код или символ валюты, если понятен из текста (GBP, AZN, USD, $, ₼...), иначе null.\n- Никогда не выдумывай товары или цены, которых нет в тексте.\n\nТекст из файла:\n{{ $json.text }}"
+      },
+      "id": "37fbb9b7-90db-474d-ba61-67552ca21539",
+      "name": "Extract data",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        1552,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "9587a5e1-6caa-483e-9abc-600b55c67d0e",
+      "name": "Groq (extract)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        448
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "groqApi": {
+          "id": "Scofs4vmTUTdc4Pe",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Строка для таблицы parsed_items (только когда найдены товары с ценами)\nconst d = $json;\nreturn [{ json: {\n  chat_id: d.chat_id,\n  file_name: d.file_name,\n  item_count: d.item_count,\n  items: JSON.stringify(d.items),\n  description: d.description,\n  raw_text: d.raw_text,\n}}];"
+      },
+      "id": "cbc3e641-29ac-46e4-8057-1c7bb895a1dc",
+      "name": "Build row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1968,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "mode": "name",
+          "value": "parsed_items"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "chat_id",
+              "displayName": "chat_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "item_count",
+              "displayName": "item_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "items",
+              "displayName": "items",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "raw_text",
+              "displayName": "raw_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "32ba6eaf-049d-4672-80b9-773b67c64577",
+      "name": "Save to Postgres",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        2288,
+        128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "wyjpVEPKUUCSbc8X",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Execute Workflow Trigger').first().json.chat_id }}",
+        "text": "=✅ Нашёл позиции и сохранил ({{ $('Parse result').first().json.item_count }} шт.)\n\n{{ $('Parse result').first().json.items.map(i => `• ${i.name} — ${i.price}${i.currency ? ' ' + i.currency : ''}`).join('\\n') }}\n\n{{ $('Parse result').first().json.description }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "cf3b2a07-bea6-44bd-8d5e-35cd9c01368e",
+      "name": "Send result",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2576,
+        128
+      ],
+      "webhookId": "c552419f-be34-4d77-bc8b-d65e71987e6f",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "cf1b42b9-a674-4376-ace2-a37ca271f6c4",
+      "name": "Run once: create table",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        48,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS parsed_items (\n  id SERIAL PRIMARY KEY,\n  created_at TIMESTAMPTZ DEFAULT now(),\n  chat_id TEXT,\n  file_name TEXT,\n  item_count INT,\n  items TEXT,\n  description TEXT,\n  raw_text TEXT\n);",
+        "options": {}
+      },
+      "id": "dc89052b-0706-476d-806a-9f796376dfb4",
+      "name": "Create items table",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        272,
+        800
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "wyjpVEPKUUCSbc8X",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Разбираем ответ модели вручную, без жёсткого парсера — не падаем ни при каких обстоятельствах\nconst p = $('Prepare text').first().json;\nlet raw = $json.text ?? $json.output ?? $json;\nlet str = typeof raw === 'string' ? raw : JSON.stringify(raw);\nstr = str.replace(/```json|```/g, '').trim();\n\nlet parsed;\ntry {\n  parsed = JSON.parse(str);\n} catch (e) {\n  const m = str.match(/\\{[\\s\\S]*\\}/);\n  try { parsed = m ? JSON.parse(m[0]) : null; } catch (e2) { parsed = null; }\n}\nif (!parsed || typeof parsed !== 'object') {\n  parsed = { has_items: false, items: [], description: 'Не удалось распознать содержимое файла.' };\n}\n\nconst items = Array.isArray(parsed.items)\n  ? parsed.items.filter(i => i && i.name && String(i.name).trim())\n  : [];\n\nreturn [{ json: {\n  chat_id: String(p.chat_id),\n  file_name: p.file_name,\n  raw_text: p.text,\n  has_items: !!parsed.has_items && items.length > 0,\n  items,\n  item_count: items.length,\n  description: parsed.description || 'Описание не распознано.',\n}}];"
+      },
+      "id": "c1e2edad-0364-412c-85e0-3e463db781c6",
+      "name": "Parse result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "6220d0e5-568e-4e3a-b05d-9139bc5b4d9f",
+              "leftValue": "={{ $json.has_items }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "88cf5aa6-765b-4ab4-bee4-e0f87e1941af",
+      "name": "Has items?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1952,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "=ℹ️ Названий и цен не нашёл, в базу не сохранял.\n\nЧто это за файл: {{ $json.description }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "26de8568-4c22-4961-8f65-66891730a34c",
+      "name": "No items found",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1952,
+        608
+      ],
+      "webhookId": "5eea2004-99c2-4e8a-9fc8-36b56481321e",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Supported file?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supported file?": {
+      "main": [
+        [
+          {
+            "node": "Download from Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unsupported file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download from Telegram": {
+      "main": [
+        [
+          {
+            "node": "Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Parser: PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parser: OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser: PDF": {
+      "main": [
+        [
+          {
+            "node": "Prepare text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser: OCR": {
+      "main": [
+        [
+          {
+            "node": "Prepare text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare text": {
+      "main": [
+        [
+          {
+            "node": "Text found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text found?": {
+      "main": [
+        [
+          {
+            "node": "Extract data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing recognized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract data": {
+      "main": [
+        [
+          {
+            "node": "Parse result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq (extract)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract data",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build row": {
+      "main": [
+        [
+          {
+            "node": "Save to Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Postgres": {
+      "main": [
+        [
+          {
+            "node": "Send result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run once: create table": {
+      "main": [
+        [
+          {
+            "node": "Create items table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse result": {
+      "main": [
+        [
+          {
+            "node": "Has items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has items?": {
+      "main": [
+        [
+          {
+            "node": "Build row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No items found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  }
+}

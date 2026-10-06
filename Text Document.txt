@@ -1,0 +1,390 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "52681463-709d-403e-a574-b4aeb5ad8066",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -608,
+        160
+      ],
+      "webhookId": "c4fd65a3-9f9f-4da4-9a91-3c0601ce5775",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "b93881fd-8d9c-482d-bfdf-fa181e59316d",
+              "leftValue": "={{ !!($json.message.document || $json.message.photo) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "32a6d604-da99-483f-b254-516b725a9565",
+      "name": "File sent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "04045677-c1d7-49ae-b6ef-d7a8ccfbdcbe",
+              "name": "chat_id",
+              "value": "={{ $json.message.chat.id }}",
+              "type": "string"
+            },
+            {
+              "id": "4483cb99-db58-473e-8991-8993d533ae48",
+              "name": "file_id",
+              "value": "={{ $json.message.document ? $json.message.document.file_id : $json.message.photo[$json.message.photo.length - 1].file_id }}",
+              "type": "string"
+            },
+            {
+              "id": "45605f0c-c5a3-408c-8067-aed7726b3bb5",
+              "name": "file_name",
+              "value": "={{ $json.message.document?.file_name || 'photo.jpg' }}",
+              "type": "string"
+            },
+            {
+              "id": "695c92af-314c-40b2-9997-ef83f20ee63d",
+              "name": "kind",
+              "value": "={{ (() => { const d = $json.message.document; if (!d) return 'image'; const m = (d.mime_type || '').toLowerCase(); if (m.includes('pdf')) return 'pdf'; if (m.startsWith('image/')) return 'image'; return 'other'; })() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "20960c8c-2d55-42b3-a5b9-aeff9898ac25",
+      "name": "File info",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "📄 Принял файл, разбираю… Это может занять до минуты.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "7078e73a-0484-4d87-b1c3-64b7fa2fff0a",
+      "name": "Ack",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        -112
+      ],
+      "webhookId": "2fa437f1-cb2d-40ae-95ed-d2a8446047d3",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "vQMHzZq9d4TYkYBK",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/vQMHzZq9d4TYkYBK",
+          "cachedResultName": "Doc Extractor"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "id": "7a57f720-5f35-4dee-93fb-98970bcfd54c",
+      "name": "Run Doc Extractor",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        64,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text || 'Пользователь прислал сообщение без текста (стикер, голосовое и т.п.)' }}",
+        "options": {
+          "systemMessage": "=Ты — ассистент Scraper Studio в Telegram. Сегодня {{ $now.format('yyyy-MM-dd') }}.\n\nИнструменты:\n- read_webpage — открывает страницу или PDF по ссылке и возвращает текст, цены и контакты. Вызывай, когда пользователь даёт ссылку или спрашивает о содержимом сайта.\n- my_documents — последние документы (счета, договоры и т.п.), которые пользователь присылал боту файлами. Вызывай, когда спрашивают о его документах, суммах, датах.\n\nПравила:\n- Отвечай кратко, на языке пользователя.\n- Опирайся только на данные инструментов, ничего не выдумывай.\n- Если в ответе инструмента truncated = true — предупреди, что прочитана только часть страницы.\n- Если пришло поле error — объясни проблему простыми словами.\n- Если пользователь хочет сохранить документ — попроси прислать PDF или фото прямо в этот чат.\n- Не используй Markdown-разметку (звёздочки, решётки): ответ уходит в Telegram как обычный текст.",
+          "maxIterations": 6
+        }
+      },
+      "id": "321d8e71-4ced-4078-a456-79c7d4039e56",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -112,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "id": "3fb6f78d-39ec-4d92-95ff-694d1dc730d2",
+      "name": "Groq (agent)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        560
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "groqApi": {
+          "id": "Scofs4vmTUTdc4Pe",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "contextWindowLength": 10
+      },
+      "id": "97047a76-f2e5-46c0-8c46-a2477a83b239",
+      "name": "Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -160,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Открывает веб-страницу или PDF по ссылке и возвращает JSON: title, text (текст страницы), truncated, price_summary (цены), contacts (контакты) или error. Сканы PDF распознаются через OCR. Вход: url — полная ссылка http(s).",
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/agent/read",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $fromAI('url', 'Полная ссылка http(s) на страницу или PDF-файл', 'string') }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b80f4471-cf25-413e-bf18-9b6a60580979",
+      "name": "read_webpage",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        -16,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Возвращает 10 последних документов, которые пользователь присылал боту: тип, дата, организация, номер, сумма, валюта, краткое описание. Параметров не требует.",
+        "operation": "executeQuery",
+        "query": "SELECT created_at::date AS uploaded, file_name, doc_type, doc_date, organization, document_number, total_amount, currency, summary\nFROM documents\nWHERE chat_id = $1\nORDER BY created_at DESC\nLIMIT 10;",
+        "options": {
+          "queryReplacement": "={{ String($('Telegram Trigger').item.json.message.chat.id) }}"
+        }
+      },
+      "id": "20a8aa4a-b596-4721-ad84-ebbe631e24bc",
+      "name": "my_documents",
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.5,
+      "position": [
+        128,
+        560
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "wyjpVEPKUUCSbc8X",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ String($json.output || '').slice(0, 4000) }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c89434bc-8fa0-438c-a95f-3ff2ec8fb41c",
+      "name": "Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        240,
+        320
+      ],
+      "webhookId": "6be5dbaf-aa20-485c-b6e2-4c7636e9b0ad",
+      "credentials": {
+        "telegramApi": {
+          "id": "ERI9R7CF39CGgNws",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "File sent?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File sent?": {
+      "main": [
+        [
+          {
+            "node": "File info",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File info": {
+      "main": [
+        [
+          {
+            "node": "Ack",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Run Doc Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq (agent)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_webpage": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "my_documents": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "558d88703fb65b2d0e44613bc35916258b0f0bf983c5d4730c00c424b77ca36a"
+  }
+}
